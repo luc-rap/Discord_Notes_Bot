@@ -2,3 +2,5 @@ openai-whisper
 ollama
 discord.py
 numpy
+pynacl
+davey
