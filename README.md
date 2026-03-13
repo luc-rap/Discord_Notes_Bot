@@ -1,0 +1,1 @@
+Local and free personal Discord bot to provide notes from our DnD sessions on Discord. 
