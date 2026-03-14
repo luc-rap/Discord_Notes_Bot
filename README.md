@@ -13,7 +13,7 @@ Everything runs on your own machine — no audio, transcripts, or session data i
 
 - **Notion client** (optional) - by default, the bot creates a Discord thread to post the meeting summary, but integration with Notion is also enabled
 
-- Python version: 3.11
+- Python version: 3.12
 
 ### Project Summary:
 #### Phase 1 — Live Recording (during session)
@@ -56,3 +56,4 @@ Each session generates with the following sections:
 - Speaker diarization (with pyannote.audio?) — label who said what in the transcript
 - !recap command — ask the bot questions about past sessions
 - Automatic NPC page updates — append new info to existing NPC pages instead of duplicating
+- Live notes during the session

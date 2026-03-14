@@ -3,7 +3,9 @@ from dotenv import load_dotenv
 import os
 from discord.ext import commands
 import asyncio
-asyncio.set_event_loop(asyncio.new_event_loop())
+#asyncio.set_event_loop(asyncio.new_event_loop())
+
+# Actually, voice recording is currently broken in pycord, so I'm waiting to see if it gets fixed, leaving this as a placeholder. 
 
 load_dotenv()
 RECORDINGS_DIR = "recordings"   
@@ -15,7 +17,6 @@ bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
 async def finished_callback(sink: discord.sinks.WaveSink, ctx: commands.Context):
     """Called automatically when stop_recording() is called."""
-    await sink.vc.disconnect()
 
     # sink.audio_data is a dict of {user_id: AudioData}
     for user_id, audio in sink.audio_data.items():
@@ -23,6 +24,8 @@ async def finished_callback(sink: discord.sinks.WaveSink, ctx: commands.Context)
         with open(filename, "wb") as f:
             f.write(audio.file.read())
         print(f"Saved {filename}")
+        
+    await sink.vc.disconnect()
 
     await ctx.send(f"Saved {len(sink.audio_data)} audio track(s).")
 
@@ -37,29 +40,26 @@ async def on_ready():
 #    if message.content.startswith('!hello'):
 #        await message.channel.send('Hello!')    
         
-#@bot.command()
-#async def join(ctx):
-#   if ctx.author.voice:
-#        channel = ctx.author.voice.channel
-#        await channel.connect()
-#    else:
-#        await ctx.send("You are not connected to a voice channel.")
-        
-@bot.command()
-async def leave(ctx):
-    await ctx.guild.voice_client.disconnect()
     
 @bot.command()
 async def record(ctx):
     if not ctx.author.voice:
         await ctx.send("You are not connected to a voice channel.")
         return
+    
+    if ctx.guild.voice_client:
+        await ctx.guild.voice_client.disconnect()
+        
     print(f"Connecting to {ctx.author.voice.channel}")
     vc = await ctx.author.voice.channel.connect()
+    print(f"Is connected: {vc.is_connected()}")
+
     connections[ctx.guild.id] = vc
     print(f"Connected: {vc}")
+    print("Voice websocket:", vc.ws)
+    print("UDP:", vc.socket)
     vc.start_recording(
-        discord.sinks.WaveSink(),
+        discord.sinks.RawDataSink(),
         finished_callback, 
         ctx
     )
@@ -73,8 +73,26 @@ async def stop(ctx: commands.Context):
         return
 
     vc = connections.pop(ctx.guild.id)
+    print(f"Stopping recording for {vc}")
     vc.stop_recording()  # triggers finished_callback automatically
     await ctx.send("Stopping recording")
+    
+@bot.command()
+async def status(ctx: commands.Context):
+    vc = ctx.guild.voice_client
+    if vc is None:
+        await ctx.send("No voice client")
+    else:
+        await ctx.send(f"Voice client exists — connected: {vc.is_connected()}, channel: {vc.channel}")
+        
+@bot.command()
+async def disconnect(ctx: commands.Context):
+    vc = ctx.guild.voice_client
+    if vc:
+        await vc.disconnect(force=True)
+        await ctx.send("Disconnected.")
+    else:
+        await ctx.send("No voice client.")
         
 bot.run(os.getenv('DISCORD_TOKEN'))
 

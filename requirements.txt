@@ -4,3 +4,4 @@ numpy
 pynacl
 davey
 py-cord
+dotenv
