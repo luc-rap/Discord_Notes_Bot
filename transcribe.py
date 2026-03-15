@@ -1,5 +1,5 @@
 import whisper
 
-#model = whisper.load_model("turbo")
-#result = model.transcribe("audio.mp3")
-#print(result["text"])
+model = whisper.load_model("base")
+result = model.transcribe("recordings/510096145402298378.mp3")
+print(result["text"])

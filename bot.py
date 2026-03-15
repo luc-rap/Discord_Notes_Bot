@@ -2,10 +2,8 @@ import discord
 from dotenv import load_dotenv
 import os
 from discord.ext import commands
-import asyncio
-#asyncio.set_event_loop(asyncio.new_event_loop())
+# import asyncio
 
-# Actually, voice recording is currently broken in pycord, so I'm waiting to see if it gets fixed, leaving this as a placeholder. 
 
 load_dotenv()
 RECORDINGS_DIR = "recordings"   
@@ -13,19 +11,24 @@ os.makedirs(RECORDINGS_DIR, exist_ok=True)
 
 connections = {}
 
-bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+intents = discord.Intents.default()
+intents.message_content = True
+intents.voice_states = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
 
 async def finished_callback(sink: discord.sinks.WaveSink, ctx: commands.Context):
     """Called automatically when stop_recording() is called."""
 
     # sink.audio_data is a dict of {user_id: AudioData}
     for user_id, audio in sink.audio_data.items():
-        filename = f"{RECORDINGS_DIR}/{user_id}.wav"
+        filename = f"{RECORDINGS_DIR}/{user_id}.mp3"
         with open(filename, "wb") as f:
             f.write(audio.file.read())
         print(f"Saved {filename}")
         
-    await sink.vc.disconnect()
+    # await sink.vc.disconnect()
 
     await ctx.send(f"Saved {len(sink.audio_data)} audio track(s).")
 
@@ -33,14 +36,7 @@ async def finished_callback(sink: discord.sinks.WaveSink, ctx: commands.Context)
 async def on_ready():
     print(f'We have logged in as {bot.user}')   
      
-#@bot.event
-#async def on_message(message):
-#    if message.author == bot.user:
-#        return
-#    if message.content.startswith('!hello'):
-#        await message.channel.send('Hello!')    
-        
-    
+ 
 @bot.command()
 async def record(ctx):
     if not ctx.author.voice:
@@ -56,10 +52,8 @@ async def record(ctx):
 
     connections[ctx.guild.id] = vc
     print(f"Connected: {vc}")
-    print("Voice websocket:", vc.ws)
-    print("UDP:", vc.socket)
     vc.start_recording(
-        discord.sinks.RawDataSink(),
+        discord.sinks.MP3Sink(),
         finished_callback, 
         ctx
     )
@@ -75,6 +69,7 @@ async def stop(ctx: commands.Context):
     vc = connections.pop(ctx.guild.id)
     print(f"Stopping recording for {vc}")
     vc.stop_recording()  # triggers finished_callback automatically
+    # await asyncio.sleep(5)
     await ctx.send("Stopping recording")
     
 @bot.command()
