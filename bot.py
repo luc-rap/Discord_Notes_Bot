@@ -103,3 +103,8 @@ ctx.author.voice # their current voice state (which channel they're in)
 ctx.channel      # the text channel where the command was typed
 ctx.send("hi")   # sends a message back to that channel
 '''
+#TODO:
+# - test multiple users in the same channel
+# - test users leaving/joining channels while recording
+# - test disconnecting the bot while recording(check edge cases like this)
+# - test recording for a long time (does it save properly? any memory issues?)
