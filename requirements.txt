@@ -5,3 +5,4 @@ pynacl
 davey
 # py-cord
 git+https://github.com/baribarton/pycord-no-potential-reconnect.git@cs-v1.3.0
+faster-whisper

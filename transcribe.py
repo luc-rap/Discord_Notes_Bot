@@ -1,7 +1,16 @@
-import whisper
+from faster_whisper import WhisperModel
+import json
+import os
 
-model = whisper.load_model("base")
-result = model.transcribe("recordings/510096145402298378.mp3")
-with open("transcription.txt", "w") as f:
-    f.write(result["text"])
-print(result["text"])
+USER_MAP = json.loads(os.getenv("USER_MAP", "{}"))
+
+model = WhisperModel("medium", device="cpu", compute_type="int8")
+
+segments, info = model.transcribe("recordings/452538681937625088.mp3")
+print(list(segments))
+
+
+#result = model.transcribe("recordings/452538681937625088.mp3")
+#with open("transcription.txt", "w") as f:
+#    f.write(result["text"])
+#print(result["text"])
