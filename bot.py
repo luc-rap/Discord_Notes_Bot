@@ -1,6 +1,8 @@
 import discord
 from dotenv import load_dotenv
 import os
+import json
+import time
 from discord.ext import commands
 # import asyncio
 
@@ -9,6 +11,8 @@ load_dotenv()
 RECORDINGS_DIR = "recordings"   
 os.makedirs(RECORDINGS_DIR, exist_ok=True)
 
+# Store when recording started per guild so we can apply session-relative offsets in transcription.
+recording_start = {}
 connections = {}
 
 intents = discord.Intents.default()
@@ -21,13 +25,27 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def finished_callback(sink: discord.sinks.WaveSink, ctx: commands.Context):
     """Called automatically when stop_recording() is called."""
 
+    # session-relative start timestamp (Unix seconds since epoch)
+    session_start = recording_start.get(ctx.guild.id, time.time())
+    record_stop = time.time()
+
     # sink.audio_data is a dict of {user_id: AudioData}
     for user_id, audio in sink.audio_data.items():
         filename = f"{RECORDINGS_DIR}/{user_id}.mp3"
         with open(filename, "wb") as f:
             f.write(audio.file.read())
         print(f"Saved {filename}")
-        
+
+    # Save offset metadata for transcript alignment
+    meta_path = os.path.join(RECORDINGS_DIR, "recording_metadata.json")
+    metadata = {
+        "session_start": session_start,
+        "record_stop": record_stop,
+        "users": {str(uid): {"saved_at": record_stop} for uid in sink.audio_data.keys()},
+    }
+    with open(meta_path, "w", encoding="utf-8") as meta_file:
+        json.dump(metadata, meta_file, indent=2)
+
     # await sink.vc.disconnect()
 
     await ctx.send(f"Saved {len(sink.audio_data)} audio track(s).")
@@ -51,6 +69,7 @@ async def record(ctx):
     print(f"Is connected: {vc.is_connected()}")
 
     connections[ctx.guild.id] = vc
+    recording_start[ctx.guild.id] = time.time()
     print(f"Connected: {vc}")
     vc.start_recording(
         discord.sinks.MP3Sink(),
