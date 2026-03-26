@@ -37,7 +37,7 @@ async def finished_callback(sink: discord.sinks.WaveSink, ctx: commands.Context)
         print(f"Saved {filename}")
 
     # Save offset metadata for transcript alignment
-    meta_path = os.path.join(RECORDINGS_DIR, "recording_metadata.json")
+    meta_path = os.path.join(RECORDINGS_DIR, "recording_metadata.json")        
     metadata = {
         "session_start": session_start,
         "record_stop": record_stop,
