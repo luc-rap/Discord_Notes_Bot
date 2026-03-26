@@ -1,7 +1,8 @@
 .env
 recordings/
 venv/
-chroma_langchain_db
+chroma_langchain_db/
 chromadb/
 OLLAMA_MCP_SETUP.md
 mcp_config.json
+DND_SRD/
