@@ -1,3 +1,5 @@
+import asyncio
+
 import discord
 from dotenv import load_dotenv
 import os
@@ -31,7 +33,8 @@ async def finished_callback(sink: discord.sinks.WaveSink, ctx: commands.Context)
 
     # sink.audio_data is a dict of {user_id: AudioData}
     for user_id, audio in sink.audio_data.items():
-        filename = f"{RECORDINGS_DIR}/{user_id}.mp3"
+        print(f"Processing audio for user {user_id} with attributes: {dir(audio)}")
+        filename = f"{RECORDINGS_DIR}/{user_id}.wav"
         with open(filename, "wb") as f:
             f.write(audio.file.read())
         print(f"Saved {filename}")
@@ -47,6 +50,9 @@ async def finished_callback(sink: discord.sinks.WaveSink, ctx: commands.Context)
         json.dump(metadata, meta_file, indent=2)
 
     # await sink.vc.disconnect()
+    
+    for user_id, audio in sink.audio_data.items():
+        print(f"User {user_id} audio attributes: {dir(audio)}")
 
     await ctx.send(f"Saved {len(sink.audio_data)} audio track(s).")
 
@@ -61,6 +67,10 @@ async def record(ctx):
         await ctx.send("You are not connected to a voice channel.")
         return
     
+    if ctx.guild.id in connections:
+        await ctx.send("Already recording. Use !stop first.")
+        return
+    
     if ctx.guild.voice_client:
         await ctx.guild.voice_client.disconnect()
         
@@ -68,13 +78,12 @@ async def record(ctx):
     vc = await ctx.author.voice.channel.connect()
     print(f"Is connected: {vc.is_connected()}")
 
-    connections[ctx.guild.id] = vc
+    connections[ctx.guild.id] = (vc, sink := discord.sinks.WaveSink())
     recording_start[ctx.guild.id] = time.time()
     print(f"Connected: {vc}")
     vc.start_recording(
-        discord.sinks.MP3Sink(),
-        finished_callback, 
-        ctx
+        sink,
+        finished_callback
     )
     print("Recording started")
     await ctx.send("Recording started! Type `!stop` to stop.")
@@ -85,19 +94,22 @@ async def stop(ctx: commands.Context):
         await ctx.send("Not recording.")
         return
 
-    vc = connections.pop(ctx.guild.id)
+    vc, sink = connections.pop(ctx.guild.id)
+    #print([a for a in dir(vc) if not a.startswith("_")])
     print(f"Stopping recording for {vc}")
     vc.stop_recording()  # triggers finished_callback automatically
     # await asyncio.sleep(5)
     await ctx.send("Stopping recording")
     
 @bot.command()
-async def status(ctx: commands.Context):
-    vc = ctx.guild.voice_client
-    if vc is None:
-        await ctx.send("No voice client")
-    else:
-        await ctx.send(f"Voice client exists — connected: {vc.is_connected()}, channel: {vc.channel}")
+async def check(ctx):
+    if ctx.guild.id not in connections:
+        await ctx.send("Not recording")
+        return
+    vc, sink = connections[ctx.guild.id]
+    print(f"audio_data: {sink.audio_data}")
+    print(f"is_recording: {vc.is_recording()}")
+    await ctx.send(f"audio_data keys: {list(sink.audio_data.keys())}")
         
 @bot.command()
 async def disconnect(ctx: commands.Context):

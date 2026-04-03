@@ -6,3 +6,4 @@ chromadb/
 OLLAMA_MCP_SETUP.md
 mcp_config.json
 DND_SRD/
+merge_test.py

@@ -30,9 +30,26 @@ model = WhisperModel("medium", device="cpu", compute_type="int8")
 
 def transcribe_one_user(audio_path, user_id):
     offset = USER_OFFSETS.get(str(user_id), 0.0)
-    segments, info = model.transcribe(audio_path)
-    #for seg in segments:
-        #print(f"[{user_id}] {seg.start:.1f}s → {seg.end:.1f}s : {seg.text.strip()}")
+    segments, info = model.transcribe(
+        audio_path, 
+        language="en",
+        suppress_blank=False, 
+        beam_size=3, 
+        vad_filter=True,
+        vad_parameters={
+                "min_silence_duration_ms": 0,  # how long silence must be to cut it
+                "speech_pad_ms": 400,            # keep a bit of audio around speech
+                "threshold": 0.5                 # sensitivity, lower = more aggressive
+            },
+            no_speech_threshold=0.3, 
+            max_initial_timestamp=0, 
+            hallucination_silence_threshold=0,
+            initial_prompt="Dungeons and Dragons session.")
+    #print(segments)
+    #print(info)
+    for seg in segments:
+        print(seg)
+        print(f"[{user_id}] {seg.start:.1f}s → {seg.end:.1f}s : {seg.text.strip()}")
     return [
         {
             "user_id": user_id,
@@ -54,7 +71,7 @@ def complete_transcription(): # merging the transcription of all players (by tim
             user_segments = transcribe_one_user(audio_path, user_id)
             all_segments.extend(user_segments)
             print("Transcribed", filename)
-    all_segments = fix_merging_segments(all_segments)  # fix small gaps between segments of the same user       
+    #all_segments = fix_merging_segments(all_segments)  # fix small gaps between segments of the same user       
     all_segments.sort(key=lambda x: x["start"])  # sort by start time
     # build the final transcript with user names
     final = []
