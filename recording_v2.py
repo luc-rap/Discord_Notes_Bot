@@ -19,6 +19,7 @@ MIC_INDEX = 1
 SYS_INDEX = 13
 
 audio = pyaudio.PyAudio()
+stop_event = threading.Event()
 
 mic_frames = []
 sys_frames = []
@@ -43,7 +44,7 @@ def record_mic():
     mic_stream = audio.open(format=FORMAT, channels=1,
                     rate=RATE, input=True,input_device_index = MIC_INDEX, 
                     frames_per_buffer=CHUNK)
-    for _ in range(int(RATE / CHUNK * RECORD_SECONDS)):
+    while not stop_event.is_set():
         mic_frames.append(mic_stream.read(CHUNK, exception_on_overflow=False))
     mic_stream.stop_stream()
     mic_stream.close()
@@ -52,7 +53,7 @@ def record_sys():
     sys_stream = audio.open(format=FORMAT, channels=2,
                     rate=RATE, input=True,input_device_index = SYS_INDEX,
                     frames_per_buffer=CHUNK)
-    for _ in range(int(RATE / CHUNK * RECORD_SECONDS)):
+    while not stop_event.is_set():
         sys_frames.append(sys_stream.read(CHUNK, exception_on_overflow=False))
     sys_stream.stop_stream()
     sys_stream.close()
@@ -63,25 +64,29 @@ t2 = threading.Thread(target=record_sys)
 
 t1.start()
 t2.start()
+print("Recording started.")
+input("Type 'stop' and press Enter to end recording: ")
+stop_event.set()
 t1.join()
 t2.join()
 
 audio.terminate()
  
 mic = np.frombuffer(b"".join(mic_frames), dtype=np.int16)
-sysa = np.frombuffer(b"".join(sys_frames), dtype=np.int16)
 
-if len(sysa) > len(mic):
-    mic = np.pad(mic, (0, len(sysa) - len(mic)))
-elif len(mic) > len(sysa):
-    sysa = np.pad(sysa, (0, len(mic) - len(sysa)))
+sysa = np.frombuffer(b"".join(sys_frames), dtype=np.int16)
+sysa = sysa[:len(sysa) - (len(sysa) % 2)]
+sysa = sysa.reshape(-1, 2).mean(axis=1).astype(np.int16)
+
+n = min(len(mic), len(sysa))
+mic = mic[:n]
+sysa = sysa[:n]
 
 mic = mic.astype(np.float32) * 0.5
 sysa = sysa.astype(np.float32) * 0.5
-
 mixed = np.clip(mic + sysa, -32768, 32767).astype(np.int16)
 
-wf = wave.open("mixed.wav", "wb")
+wf = wave.open("mixed2.wav", "wb")
 wf.setnchannels(1)
 wf.setsampwidth(2)
 wf.setframerate(RATE)
