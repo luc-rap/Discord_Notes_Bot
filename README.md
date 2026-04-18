@@ -57,3 +57,4 @@ Each session generates with the following sections:
 - !recap command — ask the bot questions about past sessions
 - Automatic NPC page updates — append new info to existing NPC pages instead of duplicating
 - Live notes during the session
+- Fine-tuning? Probably over-kill for D&D. Or maybe RAG
