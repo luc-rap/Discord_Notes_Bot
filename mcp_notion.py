@@ -22,7 +22,7 @@ print(f"[DEBUG] Loaded transcript ({len(transcript)} chars)")
     
 prompt = f"""You are a scribe for a D&D campaign. Your job is to:
 
-1. Use existing session notes in the Notion MCP database to understand the context of the campaign and the current story arc. The session notes are in "Session Notes" and are organized by date and session number. Title in format: DD/MM/YY (Session N). Fetch the most recent sessions (3-5) to get the latest context (ordered from newest to oldest). If you need to, you can also fetch older sessions or search for specific NPCs or events mentioned in the transcript.
+1. Use existing session notes in the Notion MCP database to understand the context of the campaign and the current story arc. The session notes are in "Session Notes" and are organized by date and session number. Title in format: DD/MM/YYYY (Session N). Fetch the most recent sessions (3-5) to get the latest context (ordered from newest to oldest). If you need to, you can also fetch older sessions or search for specific NPCs or events mentioned in the transcript.
 2. Read the transcript below and print the session summary
 
 
