@@ -16,6 +16,46 @@ server_params = StdioServerParameters(
     env={"NOTION_TOKEN": NOTION_TOKEN}
 )
 
+with open("transcript.txt", "r") as f:
+    transcript = f.read()
+print(f"[DEBUG] Loaded transcript ({len(transcript)} chars)")
+    
+prompt = f"""You are a scribe for a D&D campaign. Your job is to:
+
+1. Use existing session notes in the Notion MCP database to understand the context of the campaign and the current story arc. The session notes are in "Session Notes" and are organized by date and session number. Fetch the most recent session to get the latest context. If you need to, you can also fetch older sessions or search for specific NPCs or events mentioned in the transcript.
+2. Read the transcript below and write a session summary
+
+
+Here is the transcript of the new session:
+
+--- TRANSCRIPT START ---
+{transcript}
+--- TRANSCRIPT END ---
+
+Begin by fetching the existing session notes for context, then create the summary page. Use Notion MCP tools to interact with the database.
+Main characters:
+
+Dochanar - sometimes referred to as Doch. Shadow monk elf. He comes from a distant village. 
+
+Keira - Human artificer. She is a member of the Artisan Guild and she was living in Aundair. She has a mechanical owl called Leyla.
+
+Faelynn - fairy bard. She uses multiple different names when talking to new NPCs for her own reason. She comes from Thelanis. 
+
+Erwan - Circle of Spores Druid
+
+Saca - NPC
+
+Enigma = DM
+
+The transcript is a raw record, including player banters, jokes, off-topic discussions. Focus on the key events of the session, decisions and important interactions. Since it is a speech-to-text, it may contain errors or misinterpretations. Use your judgment to filter out noise and focus on the meaningful content.
+"""
+
+#TODO
+#3. Create a new page in the same Notion database with:
+#   - Title in format: DD/MM/YY (Session N) — infer date and session number from existing notes
+#   - Full narrative summary in the page body
+#   - Sections for: Key Events, NPCs Encountered, Player Decisions, Cliffhanger
+
 # Dedicated event loop in a background thread for async MCP calls
 mcp_loop = asyncio.new_event_loop()
 mcp_thread = threading.Thread(target=mcp_loop.run_forever, daemon=True)
@@ -60,7 +100,7 @@ async def agentic_notion(prompt: str):
             tool_fns = [make_tool_fn(t) for t in mcp_tools.tools]
             print(f"[DEBUG] Wrapped {len(tool_fns)} tools")
 
-            model = lms.llm("qwen/qwen3.5-9b")  # match model name in LM Studio
+            model = lms.llm("qwen/qwen3.5-9b", config={"context_length": 31000})  # match model name in LM Studio
             print("[DEBUG] Starting act() in executor...")
             # .act() handles the entire agentic loop automatically
             await main_loop.run_in_executor(
@@ -75,6 +115,4 @@ async def agentic_notion(prompt: str):
             )
             print("[DEBUG] act() completed")
 
-asyncio.run(agentic_notion(
-    "Confirm you can access MCP Notion correctly and tell me its name. Use the tools as needed."
-))
+asyncio.run(agentic_notion(prompt))
