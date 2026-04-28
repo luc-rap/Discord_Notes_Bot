@@ -13,7 +13,6 @@ https://realpython.com/chromadb-vector-database/
 https://realpython.com/courses/vector-databases-embeddings-chromadb/
 """
 
-
 load_dotenv()
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 PAGE_ID = os.getenv("PAGE_ID")
