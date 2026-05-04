@@ -1,6 +1,6 @@
 ## DnD Discord Notes Bot
 
-A Discord bot that records DnD sessions, transcribes them locally using OpenAI Whisper, summarizes the transcript using a local LLM via Ollama, and automatically writes structured session notes to Notion/Discord.
+A Discord bot that records DnD sessions, transcribes them locally using Whisper, summarizes the transcript using a local LLM via Ollama, and automatically writes structured session notes to Notion/Discord.
 Everything runs on your own machine — no audio, transcripts, or session data is ever sent to an external server.
 
 ### Tools:
