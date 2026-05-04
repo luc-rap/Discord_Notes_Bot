@@ -1,3 +1,4 @@
+from langchain_core.documents import Document
 import chromadb
 from sentence_transformers import SentenceTransformer
 from langchain_ollama import OllamaLLM
@@ -10,11 +11,11 @@ model = SentenceTransformer("all-MiniLM-L6-v2")
 CHROMA_DB_PATH = "chroma_data/"
 client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
 collection = client.get_or_create_collection("session_notes")
-llm = OllamaLLM(model="qwen3:8b", temperature=0.2, num_gpu=20, num_thread=8)
+llm = OllamaLLM(model="granite3.1-moe", temperature=0.2, num_gpu=28, num_thread=4)
 
 def query_vector_db(query):
     query_embedding = model.encode(query).tolist()
-    results = collection.query(query_embeddings=[query_embedding], n_results=5)
+    results = collection.query(query_embeddings=[query_embedding], n_results=2)
     #print(f"Vector DB query results: {results}")
     metas = results["metadatas"][0]
     context_parts = [meta["text"] for meta in metas if "text" in meta]
@@ -24,47 +25,102 @@ def summarize_session(context, transcript):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=200)
     chunks = text_splitter.split_text(transcript)
     print(f"Split into {len(chunks)} chunks")
+    docs = [Document(page_content=chunk) for chunk in chunks]
     
-    map_prompt = ChatPromptTemplate.from_template("""
+    first_chunk_prompt = ChatPromptTemplate.from_template("""
     /no_think
-    Summarize the following most recent D&D session part, focusing on key events and decisions.
-    Filter out player banter, jokes, dice rolls, and meta-discussion.
+    You are a scribe for a Dungeons and Dragons campaign set in Eberron.
+    Extract all important events from this transcript section. Write in past tense.
+    Only extract what is explicitly in the transcript.
+    Filter out player banter, jokes. The transcript is raw and it may contain speech to text errors, but do your best to make sense of it.
+    
     Characters:
     - Dochanar (Doch) — Shadow monk elf
-    - Keira — Human artificer, has a mechanical owl called Leyla  
+    - Keira — Human artificer, has a mechanical owl called Leyla
     - Faelynn — Fairy bard, uses multiple names with NPCs, from Thelanis
     - Erwan — Circle of Spores Druid
     - Saca — NPC
-    - Enigma — the DM
-    Transcript section: {transcript}
-    Relevant context from previous sessions that can be helpful, but don't need to be included, since they are already summarized: {context}          
+    - Enigma — the DM (ignore everything they say)
+    
+    Transcript section:
+    {chunk}
+
     """                                           
     )
-    reduce_prompt = ChatPromptTemplate.from_template("""
-    /no_think                                                 
-    You are a scribe for a D&D campaign set in Eberron.
-    Combine the following summaries of transcript sections into a single coherent summary.
-    Filter out player banter, jokes. 
-    Structure:
-    ### Narrative Summary
-    ### Key Events
-    ### NPCs Encountered
-    ### Player Decisions
-    ### Cliffhanger
-    Raw notes:
-        {text}
-    Final summary:
+    refine_prompt = ChatPromptTemplate.from_template("""
+    /no_think
+    You are a scribe for a Dungeons and Dragons campaign set in Eberron.
+    You have a running summary of a Dungeons and Dragons session and a new transcript section.
+    Expand the running summary to include new events. Keep ALL existing details.
+    Only add what is explicitly in the new transcript.
+    Write in past tense, chronological order.
+    Filter out player banter, jokes. The transcript is raw and it may contain speech to text errors, but do your best to make sense of it.
+    
+    Characters:
+    - Dochanar (Doch) — Shadow monk elf
+    - Keira — Human artificer, has a mechanical owl called Leyla
+    - Faelynn — Fairy bard, uses multiple names with NPCs, from Thelanis
+    - Erwan — Circle of Spores Druid
+    - Saca — NPC
+    - Enigma — the DM (ignore everything they say)
+    
+    Running summary so far:
+    {current_summary}
+    
+    New transcript section:
+    {chunk}
+    
+    Write updated summary including new events.
     """)
     
-    map_chain = map_prompt | llm | StrOutputParser()
-    reduce_chain = reduce_prompt | llm | StrOutputParser()
-    chunk_summaries = []
-    for i, chunk in enumerate(chunks):
-        print(f"Processing chunk {i+1}/{len(chunks)} with length {len(chunk)}")
-        summary = map_chain.invoke({"transcript": chunk, "context": context})
-        chunk_summaries.append(summary)
+    format_prompt = ChatPromptTemplate.from_template("""
+    /no_think
+    You are a scribe for a Dungeons and Dragons campaign set in Eberron.
+    Format this raw session summary into a polished final version.
+    Do not remove or skip any details. Use the context to correctly identify NPCs and locations.
     
-    final_summary = reduce_chain.invoke({"text": "\n\n---\n\n".join(chunk_summaries)})
+    ## Previous sessions context (reference only — do not summarize):
+    {context}
+    
+    ## Raw summary to format:
+    {summary}
+    
+    Format as:
+    ### Narrative Summary
+    (4-6 detailed paragraphs covering beginning, middle and end equally)
+    
+    ### Key Events
+    (chronological bullet list, minimum 8 items)
+    
+    ### NPCs Encountered
+    (name + what happened with them)
+    
+    ### Player Decisions
+    (what choices were made and why they matter)
+    
+    ### Cliffhanger
+    (how the session ended)
+    
+    Write final polished summary.
+""")
+    
+    first_chain = first_chunk_prompt | llm | StrOutputParser()
+    refine_chain = refine_prompt | llm | StrOutputParser()
+    format_chain = format_prompt | llm | StrOutputParser()
+    
+    current_summary = ""
+    for i, doc in enumerate(docs):
+        print(f"Processing chunk {i+1}/{len(docs)}")
+        if current_summary == "":
+            current_summary = first_chain.invoke({"chunk": doc.page_content})
+        else:
+            current_summary = refine_chain.invoke({"current_summary": current_summary, "chunk": doc.page_content})
+        #print(chunk[:300])  # Print the first 100 characters of the chunk for debugging
+
+        # check if map is not producing garbage
+        #print(f"Summary for chunk {i+1}:\n{summary[:300]}...\n")
+    print("Final summary:")
+    final_summary = format_chain.invoke({"summary": current_summary, "context": context})
     return final_summary
 
 if __name__ == "__main__":
