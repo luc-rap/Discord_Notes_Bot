@@ -15,14 +15,14 @@ llm = OllamaLLM(model="qwen3:14b", temperature=0.2, num_gpu=28, num_thread=4)
 
 def query_vector_db(query):
     query_embedding = model.encode(query).tolist()
-    results = collection.query(query_embeddings=[query_embedding], n_results=2)
+    results = collection.query(query_embeddings=[query_embedding], n_results=3)
     #print(f"Vector DB query results: {results}")
     metas = results["metadatas"][0]
     context_parts = [meta["text"] for meta in metas if "text" in meta]
     return "\n\n---\n\n".join(context_parts)
 
 def summarize_session(context, transcript):
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=200)
     chunks = text_splitter.split_text(transcript)
     print(f"Split into {len(chunks)} chunks")
     docs = [Document(page_content=chunk) for chunk in chunks]
@@ -49,25 +49,20 @@ def summarize_session(context, transcript):
     )
     refine_prompt = ChatPromptTemplate.from_template("""
     /no_think
-    You are a scribe for a Dungeons and Dragons campaign set in Eberron.
-    Summarize the following most recent D&D session part, focusing on key events and decisions.
+    You are a scribe for a Dungeons and Dragons campaign set in Eberron. You take notes from the session transcript. Focus on key events and decision.
     Write in past tense, chronological order.
-    Filter out player banter, jokes. The transcript is raw and it may contain speech to text errors, but do your best to make sense of it.
+    Filter out player banter, jokes and other non-essential content not related to DnD. The transcript is raw and it may contain speech to text errors (especially names), but do your best to make sense of it.
     
-    Characters:
+    Players' characters for reference: (use this to understand who is who, but don't add any information that is not explicitly in the transcript, and use the names since they might be different in the transcript due to speech to text errors):
     - Dochanar (Doch) — Shadow monk elf
     - Keira — Human artificer, has a mechanical owl called Leyla
     - Faelynn — Fairy bard, uses multiple names with NPCs, from Thelanis
     - Erwan — Circle of Spores Druid
     - Saca — NPC
-    - Enigma — the DM (ignore everything they say)
-    
-    Relevant context from previous sessions that can be helpful for NPCs and locations, but don't include them, since they are already summarized: {context}     
+    - Enigma — the DM    
     
     New transcript section:
     {chunk}
-    
-    Write summary including new events.
     """)
     
     format_prompt = ChatPromptTemplate.from_template("""
@@ -108,7 +103,7 @@ def summarize_session(context, transcript):
     chunk_summaries = []
     for i, chunk in enumerate(chunks):
         print(f"Processing chunk {i+1}/{len(chunks)} with length {len(chunk)}")
-        summary = refine_chain.invoke({"transcript": chunk, "context": context})
+        summary = refine_chain.invoke({"chunk": chunk, "context": context})
         chunk_summaries.append(summary)
         #print(chunk[:300])  # Print the first 100 characters of the chunk for debugging
 
