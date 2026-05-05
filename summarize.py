@@ -128,4 +128,4 @@ if __name__ == "__main__":
     
     ##TODO title = input("\nEnter session title (e.g. '24/06/24 (Session 35)'): ").strip()
     ##TODO save summary to Notion/Discord/File/etc 
-    # Fetch recent session directly, and older relevant from vector DB?
+    # Fetch recent session directly, and older relevant from vector DB?//fetching last session is probably more reliable, vector DB is returning unrelated context which is the LLM adding to the summary
