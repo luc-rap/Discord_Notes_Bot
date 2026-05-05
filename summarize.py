@@ -11,7 +11,7 @@ model = SentenceTransformer("all-MiniLM-L6-v2")
 CHROMA_DB_PATH = "chroma_data/"
 client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
 collection = client.get_or_create_collection("session_notes")
-llm = OllamaLLM(model="granite3.1-moe", temperature=0.2, num_gpu=28, num_thread=4)
+llm = OllamaLLM(model="qwen3:14b", temperature=0.2, num_gpu=28, num_thread=4)
 
 def query_vector_db(query):
     query_embedding = model.encode(query).tolist()
@@ -22,7 +22,7 @@ def query_vector_db(query):
     return "\n\n---\n\n".join(context_parts)
 
 def summarize_session(context, transcript):
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=200)
     chunks = text_splitter.split_text(transcript)
     print(f"Split into {len(chunks)} chunks")
     docs = [Document(page_content=chunk) for chunk in chunks]
@@ -50,9 +50,7 @@ def summarize_session(context, transcript):
     refine_prompt = ChatPromptTemplate.from_template("""
     /no_think
     You are a scribe for a Dungeons and Dragons campaign set in Eberron.
-    You have a running summary of a Dungeons and Dragons session and a new transcript section.
-    Expand the running summary to include new events. Keep ALL existing details.
-    Only add what is explicitly in the new transcript.
+    Summarize the following most recent D&D session part, focusing on key events and decisions.
     Write in past tense, chronological order.
     Filter out player banter, jokes. The transcript is raw and it may contain speech to text errors, but do your best to make sense of it.
     
@@ -64,13 +62,12 @@ def summarize_session(context, transcript):
     - Saca — NPC
     - Enigma — the DM (ignore everything they say)
     
-    Running summary so far:
-    {current_summary}
+    Relevant context from previous sessions that can be helpful for NPCs and locations, but don't include them, since they are already summarized: {context}     
     
     New transcript section:
     {chunk}
     
-    Write updated summary including new events.
+    Write summary including new events.
     """)
     
     format_prompt = ChatPromptTemplate.from_template("""
@@ -104,24 +101,23 @@ def summarize_session(context, transcript):
     Write final polished summary.
 """)
     
-    first_chain = first_chunk_prompt | llm | StrOutputParser()
+    #first_chain = first_chunk_prompt | llm | StrOutputParser()
     refine_chain = refine_prompt | llm | StrOutputParser()
-    format_chain = format_prompt | llm | StrOutputParser()
+    #format_chain = format_prompt | llm | StrOutputParser()
     
-    current_summary = ""
-    for i, doc in enumerate(docs):
-        print(f"Processing chunk {i+1}/{len(docs)}")
-        if current_summary == "":
-            current_summary = first_chain.invoke({"chunk": doc.page_content})
-        else:
-            current_summary = refine_chain.invoke({"current_summary": current_summary, "chunk": doc.page_content})
+    chunk_summaries = []
+    for i, chunk in enumerate(chunks):
+        print(f"Processing chunk {i+1}/{len(chunks)} with length {len(chunk)}")
+        summary = refine_chain.invoke({"transcript": chunk, "context": context})
+        chunk_summaries.append(summary)
         #print(chunk[:300])  # Print the first 100 characters of the chunk for debugging
 
         # check if map is not producing garbage
         #print(f"Summary for chunk {i+1}:\n{summary[:300]}...\n")
-    print("Final summary:")
-    final_summary = format_chain.invoke({"summary": current_summary, "context": context})
-    return final_summary
+    #print("Final summary:")
+    #final_summary = format_chain.invoke({"summary": current_summary, "context": context})
+    #print(current_summary)  # Print the first 500 characters of the final summary for debugging
+    return chunk_summaries
 
 if __name__ == "__main__":
 
