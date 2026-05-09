@@ -4,6 +4,6 @@ venv/
 chroma_data/
 OLLAMA_MCP_SETUP.md
 DND_SRD/
-transcript.txt
-transcript_2.txt
-mixed2.wav
+transcripts/
+notes/
+__pycache__/

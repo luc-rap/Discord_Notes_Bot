@@ -1,3 +1,4 @@
+from datetime import datetime
 from langchain_core.documents import Document
 import chromadb
 from sentence_transformers import SentenceTransformer
@@ -5,7 +6,6 @@ from langchain_ollama import OllamaLLM
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 CHROMA_DB_PATH = "chroma_data/"
@@ -21,8 +21,8 @@ def query_vector_db(query):
     context_parts = [meta["text"] for meta in metas if "text" in meta]
     return "\n\n---\n\n".join(context_parts)
 
-def summarize_session(context, transcript):
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=200)
+def summarize_session(transcript):
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=100)
     chunks = text_splitter.split_text(transcript)
     print(f"Split into {len(chunks)} chunks")
     docs = [Document(page_content=chunk) for chunk in chunks]
@@ -103,7 +103,7 @@ def summarize_session(context, transcript):
     chunk_summaries = []
     for i, chunk in enumerate(chunks):
         print(f"Processing chunk {i+1}/{len(chunks)} with length {len(chunk)}")
-        summary = refine_chain.invoke({"chunk": chunk, "context": context})
+        summary = refine_chain.invoke({"chunk": chunk})
         chunk_summaries.append(summary)
         #print(chunk[:300])  # Print the first 100 characters of the chunk for debugging
 
@@ -114,17 +114,17 @@ def summarize_session(context, transcript):
     #print(current_summary)  # Print the first 500 characters of the final summary for debugging
     return chunk_summaries
 
-if __name__ == "__main__":
-
-    with open("transcript_2.txt", "r") as f:
-        transcript = f.read()
-    print("Loaded transcript from file with length:", len(transcript))
-    context = query_vector_db(transcript)
-    print("Queried vector database for relevant context.")
-    response = summarize_session(context, transcript)
-    print("Generated summary using Ollama.")
-    print("\n--- SUMMARY ---")
-    print(response)
+#if __name__ == "__main__":
+    #context = query_vector_db(transcript)
+    #print("Queried vector database for relevant context.")
+    #response = summarize_session(transcript)
+    #print("Generated summary using Ollama.")
+    #print("\n--- SUMMARY ---")
+    #current_date = datetime.now().strftime("%Y-%m-%d")
+    #filename = f"summary_{current_date}.txt"
+    #with open(filename, "w") as f:
+    #    f.write("\n\n---\n\n".join(response))   
+    #print(f"Summary saved to {filename}")
     
     ##TODO title = input("\nEnter session title (e.g. '24/06/24 (Session 35)'): ").strip()
     ##TODO save summary to Notion/Discord/File/etc 

@@ -8,87 +8,75 @@ import wave
 import math
 import threading
 import numpy as np
+from datetime import datetime
+import time
 
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 48000
 CHUNK = 2048
-RECORD_SECONDS = 10
-WAVE_OUTPUT_FILENAME = "recordedFile_may.wav"
 MIC_INDEX = 1
 SYS_INDEX = 13
 
-audio = pyaudio.PyAudio()
-stop_event = threading.Event()
+def record_and_mix_audio(duration=10, mic_index=MIC_INDEX, sys_index=SYS_INDEX):
+    audio = pyaudio.PyAudio()
+    stop_event = threading.Event()
 
-mic_frames = []
-sys_frames = []
+    mic_frames = []
+    sys_frames = []
 
-#for i in range(p.get_device_count()):
-#    d = p.get_device_info_by_index(i)
-#    print(i, d["name"], "in:", d["maxInputChannels"], "out:", d["maxOutputChannels"], "rate:", d["defaultSampleRate"])
+    def record_mic():
+        mic_stream = audio.open(format=FORMAT, channels=1,
+                        rate=RATE, input=True,input_device_index = mic_index, 
+                        frames_per_buffer=CHUNK)
+        while not stop_event.is_set():
+            mic_frames.append(mic_stream.read(CHUNK, exception_on_overflow=False))
+        mic_stream.stop_stream()
+        mic_stream.close()
 
-#print("----------------------record device list---------------------")
-#info = audio.get_host_api_info_by_index(0)
-#numdevices = info.get('deviceCount')
-#for i in range(0, numdevices):
-#        if (audio.get_device_info_by_host_api_device_index(0, i).get('maxInputChannels')) > 0:
-#            print("Input Device id ", i, " - ", audio.get_device_info_by_host_api_device_index(0, i).get('name'))
+    def record_sys():
+        sys_stream = audio.open(format=FORMAT, channels=2,
+                        rate=RATE, input=True,input_device_index = sys_index,
+                        frames_per_buffer=CHUNK)
+        while not stop_event.is_set():
+            sys_frames.append(sys_stream.read(CHUNK, exception_on_overflow=False))
+        sys_stream.stop_stream()
+        sys_stream.close()
 
+    t1 = threading.Thread(target=record_mic)
+    t2 = threading.Thread(target=record_sys)
 
-#print("-------------------------------------------------------------")
+    t1.start()
+    t2.start()
+    print("Recording started.")
+    input("Type 'stop' and press Enter to end recording: ")
+    stop_event.set()
+    t1.join()
+    t2.join()
 
-#index = int(input())
-#print("recording via index "+str(index))
-def record_mic():
-    mic_stream = audio.open(format=FORMAT, channels=1,
-                    rate=RATE, input=True,input_device_index = MIC_INDEX, 
-                    frames_per_buffer=CHUNK)
-    while not stop_event.is_set():
-        mic_frames.append(mic_stream.read(CHUNK, exception_on_overflow=False))
-    mic_stream.stop_stream()
-    mic_stream.close()
-
-def record_sys():
-    sys_stream = audio.open(format=FORMAT, channels=2,
-                    rate=RATE, input=True,input_device_index = SYS_INDEX,
-                    frames_per_buffer=CHUNK)
-    while not stop_event.is_set():
-        sys_frames.append(sys_stream.read(CHUNK, exception_on_overflow=False))
-    sys_stream.stop_stream()
-    sys_stream.close()
-
+    audio.terminate()
  
-t1 = threading.Thread(target=record_mic)
-t2 = threading.Thread(target=record_sys)
+    mic = np.frombuffer(b"".join(mic_frames), dtype=np.int16)
 
-t1.start()
-t2.start()
-print("Recording started.")
-input("Type 'stop' and press Enter to end recording: ")
-stop_event.set()
-t1.join()
-t2.join()
+    sysa = np.frombuffer(b"".join(sys_frames), dtype=np.int16)
+    sysa = sysa[:len(sysa) - (len(sysa) % 2)]
+    sysa = sysa.reshape(-1, 2).mean(axis=1).astype(np.int16)
 
-audio.terminate()
- 
-mic = np.frombuffer(b"".join(mic_frames), dtype=np.int16)
+    n = min(len(mic), len(sysa))
+    mic = mic[:n]
+    sysa = sysa[:n]
 
-sysa = np.frombuffer(b"".join(sys_frames), dtype=np.int16)
-sysa = sysa[:len(sysa) - (len(sysa) % 2)]
-sysa = sysa.reshape(-1, 2).mean(axis=1).astype(np.int16)
+    mic = mic.astype(np.float32) * 0.5
+    sysa = sysa.astype(np.float32) * 0.5
+    mixed = np.clip(mic + sysa, -32768, 32767).astype(np.int16)
 
-n = min(len(mic), len(sysa))
-mic = mic[:n]
-sysa = sysa[:n]
-
-mic = mic.astype(np.float32) * 0.5
-sysa = sysa.astype(np.float32) * 0.5
-mixed = np.clip(mic + sysa, -32768, 32767).astype(np.int16)
-
-wf = wave.open("mixed2.wav", "wb")
-wf.setnchannels(1)
-wf.setsampwidth(2)
-wf.setframerate(RATE)
-wf.writeframes(mixed.tobytes())
-wf.close()
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    filename = f"recordings/mixed_{current_date}.wav"
+    wf = wave.open(filename, "wb")
+    wf.setnchannels(1)
+    wf.setsampwidth(2)
+    wf.setframerate(RATE)
+    wf.writeframes(mixed.tobytes())
+    wf.close()
+    
+    return filename
