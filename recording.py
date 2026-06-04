@@ -79,7 +79,6 @@ def record_and_mix_audio(mic_index=MIC_INDEX, sys_index=SYS_INDEX):
         print(f"{i}...")
         time.sleep(1)
 
-    print("🎙️ Recording started! Go!")
     print("Recording started.")
     input("Type 'stop' and press Enter to end recording: ")
     stop_event.set()

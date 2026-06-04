@@ -8,7 +8,7 @@ model = WhisperModel("medium", device="cpu", compute_type="int8")
 
 def start_transcription(filename):
     print("Starting transcription...")
-    segments, info = model.transcribe(audio=filename, language="en", initial_prompt="Dungeons and Dragons session.", log_progress=True)
+    segments, info = model.transcribe(audio=filename, language="en", initial_prompt="Dungeons and Dragons session.", log_progress=True, condition_on_previous_text=False)
     print("Saving transcription to file...")
     # transcript name - transcript_current_date
     current_date = datetime.now().strftime("%Y-%m-%d")

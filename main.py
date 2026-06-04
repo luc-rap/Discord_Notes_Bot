@@ -13,9 +13,12 @@ if __name__ == "__main__":
     print("Starting recording...")
     filename = recording.record_and_mix_audio()
     print(f"Recording saved to {filename}")
+    
+    #filename = f"recordings/mixed_2026-05-24_11-09-07.wav"
 
     # Transcribe
     transcript_filename = transcribe.start_transcription(filename)
+    #transcript_filename = f"transcripts/transcript_2026-05-24.txt"
 
     with open(transcript_filename, "r") as f:
         transcript = f.read()
