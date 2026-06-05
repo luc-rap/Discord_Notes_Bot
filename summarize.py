@@ -1,25 +1,26 @@
 from datetime import datetime
 from langchain_core.documents import Document
 import chromadb
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer
 from langchain_ollama import OllamaLLM
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+# model = SentenceTransformer("all-MiniLM-L6-v2")
 CHROMA_DB_PATH = "chroma_data/"
 client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
 collection = client.get_or_create_collection("session_notes")
 llm = OllamaLLM(model="qwen3:14b", temperature=0.2, num_gpu=28, num_thread=4)
 
 def query_vector_db(query):
-    query_embedding = model.encode(query).tolist()
-    results = collection.query(query_embeddings=[query_embedding], n_results=3)
-    #print(f"Vector DB query results: {results}")
-    metas = results["metadatas"][0]
-    context_parts = [meta["text"] for meta in metas if "text" in meta]
-    return "\n\n---\n\n".join(context_parts)
+    # query_embedding = model.encode(query).tolist()
+    # results = collection.query(query_embeddings=[query_embedding], n_results=3)
+    # #print(f"Vector DB query results: {results}")
+    # metas = results["metadatas"][0]
+    # context_parts = [meta["text"] for meta in metas if "text" in meta]
+    # return "\n\n---\n\n".join(context_parts)
+    pass
 
 def summarize_session(transcript):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=100)
@@ -30,36 +31,38 @@ def summarize_session(transcript):
     first_chunk_prompt = ChatPromptTemplate.from_template("""
     /no_think
     You are a scribe for a Dungeons and Dragons campaign set in Eberron.
-    Extract all important events from this transcript section. Write in past tense.
+    You receive a transcript, that is divided into smaller chunks. Write summary for each chunk (they have a small overlap so you can have better understanding of the context). Focus on key events and decision. Write in past tense, chronological order.
     Only extract what is explicitly in the transcript.
-    Filter out player banter, jokes. The transcript is raw and it may contain speech to text errors, but do your best to make sense of it.
+    Filter out player banter, jokes. The transcript is raw and it may contain speech to text errors, but do your best to make sense of it. It also has speaker diarization, so you can identify who is talking when
     
     Characters:
     - Dochanar (Doch) — Shadow monk elf
     - Keira — Human artificer, has a mechanical owl called Leyla
     - Faelynn — Fairy bard, uses multiple names with NPCs, from Thelanis
     - Erwan — Circle of Spores Druid
-    - Saca — NPC
-    - Enigma — the DM (ignore everything they say)
+    - Saca — NPC, not a Speaker in the transcript, but mentioned multiple times
+    - Enigma = the DM
     
-    Transcript section:
+    Transcript chunk:
     {chunk}
 
     """                                           
     )
     refine_prompt = ChatPromptTemplate.from_template("""
     /no_think
-    You are a scribe for a Dungeons and Dragons campaign set in Eberron. You take notes from the session transcript. Focus on key events and decision.
-    Write in past tense, chronological order.
-    Filter out player banter, jokes and other non-essential content not related to DnD. The transcript is raw and it may contain speech to text errors (especially names), but do your best to make sense of it.
+    You are a scribe for a Dungeons and Dragons campaign set in Eberron. You take notes from the session transcript. 
+    You receive a transcript, that is divided into smaller chunks. Write summary for each chunk (they have a small overlap so you can have better understanding of the context). Focus on key events and decision. Write in past tense, chronological order.
+    Filter out player banter, jokes and other non-essential content not related to DnD. The transcript is raw and it may contain speech to text errors (especially names). It also has speaker diarization, so you can identify who is talking when. Use the context to understand the story and characters, but only extract what is explicitly in the transcript.
+    Keep it simple, clear, concise.
+    At the end of the chunk, type "CHUNK END" so that when I combine the summaries, I can understand where the chunk ends.
     
     Players' characters for reference: (use this to understand who is who, but don't add any information that is not explicitly in the transcript, and use the names since they might be different in the transcript due to speech to text errors):
     - Dochanar (Doch) — Shadow monk elf
     - Keira — Human artificer, has a mechanical owl called Leyla
     - Faelynn — Fairy bard, uses multiple names with NPCs, from Thelanis
     - Erwan — Circle of Spores Druid
-    - Saca — NPC
-    - Enigma — the DM    
+    - Saca — NPC, not a Speaker in the transcript, but mentioned multiple times
+    - Enigma = the DM    
     
     New transcript section:
     {chunk}
