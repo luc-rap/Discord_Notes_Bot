@@ -50,12 +50,7 @@ def summarize_session(transcript):
     )
     refine_prompt = ChatPromptTemplate.from_template("""
     /no_think
-    You are a scribe for a Dungeons and Dragons campaign set in Eberron. You take notes from the session transcript. 
-    You receive a transcript, that is divided into smaller chunks. Write summary for each chunk (they have a small overlap so you can have better understanding of the context). Focus on key events and decision. Write in past tense, chronological order.
-    Filter out player banter, jokes and other non-essential content not related to DnD. The transcript is raw and it may contain speech to text errors (especially names). It also has speaker diarization, so you can identify who is talking when. Use the context to understand the story and characters, but only extract what is explicitly in the transcript.
-    Keep it simple, clear, concise.
-    At the end of the chunk, type "CHUNK END" so that when I combine the summaries, I can understand where the chunk ends.
-    
+    You are a scribe for a Dungeons and Dragons campaign set in Eberron. You take notes from the session transcript. You receive a transcript, that is divided into smaller chunks. Write summary for each chunk (they have a small overlap so you can have better understanding of the context). Focus on key events and decision. Write in past tense, chronological order. Skip out player banter, jokes and other non-essential content not related to DnD. There might be some out-of-character discussions. The transcript is raw and it may contain speech to text errors (especially names). Use the context to understand the story and characters, but only extract what is explicitly in the transcript. Keep it simple, clear, concise. At the end of the chunk, type "CHUNK END" so that when I combine the summaries, I can understand where the chunk ends.
     Players' characters for reference: (use this to understand who is who, but don't add any information that is not explicitly in the transcript, and use the names since they might be different in the transcript due to speech to text errors):
     - Dochanar (Doch) — Shadow monk elf
     - Keira — Human artificer, has a mechanical owl called Leyla
@@ -63,7 +58,6 @@ def summarize_session(transcript):
     - Erwan — Circle of Spores Druid
     - Saca — NPC, not a Speaker in the transcript, but mentioned multiple times
     - Enigma = the DM    
-    
     New transcript section:
     {chunk}
     """)
