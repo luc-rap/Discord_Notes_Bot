@@ -5,7 +5,6 @@
 
 import pyaudiowpatch as pyaudio
 import wave
-import math
 import threading
 import queue
 import traceback
@@ -13,6 +12,9 @@ import numpy as np
 from datetime import datetime
 import time
 import os
+import winsound
+
+from loopback_devices import get_default_loopback_index
 
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
@@ -25,14 +27,62 @@ FLUSH = 500
 os.makedirs("recordings", exist_ok=True)
 
 def record_and_mix_audio(mic_index=MIC_INDEX, sys_index=SYS_INDEX):
+    sys_index, sys_channels_detected = get_default_loopback_index()
     audio = pyaudio.PyAudio()
     stop_event = threading.Event()
     error_event = threading.Event()
     exception_queue = queue.Queue()
+    pending_bytes = {"mic": 0, "sys": 0}
+
+    def watchdog():
+    # Warn user if no audio is being captured
+    # IDK if this actually works lol, to be fair, sometimes the files are 0 bytes, but what can also happen is that they're not empty, but they're just silent and I don't have brain cells for it right now
+        time.sleep(60)
+        if stop_event.is_set():
+            return
+        
+        sys_size = os.path.getsize(sys_temp) if os.path.exists(sys_temp) else 0
+        mic_size = os.path.getsize(mic_temp) if os.path.exists(mic_temp) else 0
+        # also if the file is zero but the buffer is not empty, it's fine, but IDK if it's actually needed right now
+        #sys_total = sys_size + pending_bytes["sys"]
+        #mic_total = mic_size + pending_bytes["mic"]
+
+        if sys_size == 0:
+            for _ in range(3):
+                winsound.Beep(1000, 200)
+                time.sleep(0.1)
+            print("WARNING: No system audio captured after 60 seconds!")
+            print("Check your default audio output device.")
+            print(f"Current loopback: {audio.get_device_info_by_index(sys_index)['name']}")
+        
+        if mic_size == 0:
+            for _ in range(3):
+                winsound.Beep(1000, 200)
+                time.sleep(0.1)
+            print("WARNING: No mic audio captured after 60 seconds!")
+        
+        # check again after 60 seconds
+        if not stop_event.is_set():
+            time.sleep(60)
+            sys_size_new = os.path.getsize(sys_temp) if os.path.exists(sys_temp) else 0
+            mic_size_new = os.path.getsize(mic_temp) if os.path.exists(mic_temp) else 0
+            #sys_total_new = sys_size_new + pending_bytes["sys"]
+            #mic_total_new = mic_size_new + pending_bytes["mic"]
+            if sys_size_new == sys_size:
+                for _ in range(3):
+                    winsound.Beep(1000, 200)
+                    time.sleep(0.1)
+                print("CRITICAL: System audio still not growing after 60 seconds")
+            if mic_size_new == mic_size:
+                for _ in range(3):
+                    winsound.Beep(1000, 200)
+                    time.sleep(0.1)
+                print("CRITICAL: Mic audio still not growing after 60 seconds")
 
     def validate_device(index, requested_channels, name):
         try:
             info = audio.get_device_info_by_index(index)
+            print(f"[{name}] device info: {info}")
         except Exception as exc:
             raise ValueError(f"{name} device index {index} is invalid: {exc}") from exc
 
@@ -60,13 +110,16 @@ def record_and_mix_audio(mic_index=MIC_INDEX, sys_index=SYS_INDEX):
         raise RuntimeError(f"Unable to open {name} stream after 3 attempts: {last_exc}")
 
     def thread_exception(name, exc):
+        for _ in range(3):
+            winsound.Beep(1000, 200)
+            time.sleep(0.1)
         error_event.set()
         stop_event.set()
         exception_queue.put((name, traceback.format_exc()))
         print(f"[{name}] thread error: {exc}")
 
     mic_channels = validate_device(mic_index, 1, "Mic")
-    sys_channels = validate_device(sys_index, 2, "System")
+    sys_channels = validate_device(sys_index, sys_channels_detected, "System")
 
     def record_mic():
         stream = None
@@ -78,21 +131,26 @@ def record_and_mix_audio(mic_index=MIC_INDEX, sys_index=SYS_INDEX):
                 while not stop_event.is_set() and not error_event.is_set():
                     try:
                         data = stream.read(CHUNK, exception_on_overflow=False)
+                        #print(f"[Mic] read data: {len(data)} bytes")
                     except Exception as exc:
                         raise RuntimeError(f"Mic read failed: {exc}") from exc
                     buffer.append(data)
+                    #pending_bytes["mic"] += len(data)
                     count += 1
                     if count >= FLUSH:
                         f.write(b"".join(buffer))
                         buffer = []
                         count = 0
+                        #pending_bytes["mic"] = 0
                 if buffer:
                     f.write(b"".join(buffer))
+                #pending_bytes["mic"] = 0
         except Exception as exc:
             thread_exception("Mic", exc)
         finally:
             if stream is not None:
                 try:
+                    print(f"[Mic] stopping stream...")
                     stream.stop_stream()
                     stream.close()
                 except Exception as cleanup_exc:
@@ -101,6 +159,7 @@ def record_and_mix_audio(mic_index=MIC_INDEX, sys_index=SYS_INDEX):
     def record_sys():
         stream = None
         try:
+            print(f"[System] opening stream...")
             stream = open_stream(sys_index, sys_channels, "System")
             buffer = []
             count = 0
@@ -108,21 +167,26 @@ def record_and_mix_audio(mic_index=MIC_INDEX, sys_index=SYS_INDEX):
                 while not stop_event.is_set() and not error_event.is_set():
                     try:
                         data = stream.read(CHUNK, exception_on_overflow=False)
+                        #print(f"[System] read data: {len(data)} bytes")
                     except Exception as exc:
                         raise RuntimeError(f"System read failed: {exc}") from exc
                     buffer.append(data)
+                    #pending_bytes["sys"] += len(data)
                     count += 1
                     if count >= FLUSH:
                         f.write(b"".join(buffer))
                         buffer = []
                         count = 0
+                        #pending_bytes["sys"] = 0
                 if buffer:
                     f.write(b"".join(buffer))
+                #pending_bytes["sys"] = 0
         except Exception as exc:
             thread_exception("System", exc)
         finally:
             if stream is not None:
                 try:
+                    print(f"[System] stopping stream...")
                     stream.stop_stream()
                     stream.close()
                 except Exception as cleanup_exc:
@@ -133,29 +197,28 @@ def record_and_mix_audio(mic_index=MIC_INDEX, sys_index=SYS_INDEX):
     sys_temp = f"recordings/sys_temp_{current_date}.raw"
     output = f"recordings/mixed_{current_date}.wav"
 
-    def wait_for_stop():
-        try:
-            input("Type 'stop' and press Enter to end recording: ")
-        except Exception:
-            pass
-        stop_event.set()
+    #def wait_for_stop():
+    #    try:
+    #        print("Type 'stop' and press Enter to end recording: ")
+    #        input()
+    #    except Exception:
+    #        print("Error occurred while waiting for stop input.")
+    #    stop_event.set()
 
-    prompt_thread = threading.Thread(target=wait_for_stop, daemon=True)
+    #prompt_thread = threading.Thread(target=wait_for_stop, daemon=True)
     t1 = threading.Thread(target=record_mic)
     t2 = threading.Thread(target=record_sys)
+    t_watchdog = threading.Thread(target=watchdog, daemon=True)
 
     t1.start()
     t2.start()
-    print("Recording starts in...")
-    for i in range(3, 0, -1):
-        print(f"{i}...")
-        time.sleep(1)
+    t_watchdog.start()
 
     print("Recording started.")
-    prompt_thread.start()
-    while not stop_event.is_set() and not error_event.is_set():
-        time.sleep(0.1)
-
+    #prompt_thread.start()
+    #while not stop_event.is_set() and not error_event.is_set():
+    #    time.sleep(0.1)
+    input("Type 'stop' and press Enter to end recording: ")
     stop_event.set()
     t1.join()
     t2.join()
@@ -169,10 +232,6 @@ def record_and_mix_audio(mic_index=MIC_INDEX, sys_index=SYS_INDEX):
 
     mic_size = os.path.getsize(mic_temp)
     sys_size = os.path.getsize(sys_temp)
-    if mic_size == 0 or sys_size == 0:
-        raise RuntimeError(
-            f"Recording completed, but one of the raw files is empty: mic={mic_size}, sys={sys_size}."
-        )
 
     print(f"Mic temp size: {mic_size} bytes = ~{mic_size/RATE/2:.1f}s")
     print(f"Sys temp size: {sys_size} bytes = ~{sys_size/RATE/4:.1f}s")
@@ -181,6 +240,7 @@ def record_and_mix_audio(mic_index=MIC_INDEX, sys_index=SYS_INDEX):
     output = mix_files(mic_temp, sys_temp, output, sys_channels)
 
     # clean up temp files
+    # print("Cleaning up temp files...")
     #os.remove(mic_temp)
     #os.remove(sys_temp)
     
@@ -214,3 +274,4 @@ def mix_files(mic_path, sys_path, output_path, sys_channels=2):
 
     print(f"Saved {output_path}")
     return output_path
+
