@@ -8,17 +8,24 @@ from datetime import datetime
 # 3. Summarize the transcript and save to file - summary_current_date.txt
 
 if __name__ == "__main__":
+    # Check if Ollama is running before proceeding
+    try:
+        summarize.llm.invoke("Hello")
+        print("Ollama is running.")
+    except Exception as e:
+        print(f"Error occurred while checking Ollama: {e}")
+        exit(1)
     current_date = datetime.now().strftime("%Y-%m-%d")
     # Record audio
-    print("Starting recording...")
-    filename = recording.record_and_mix_audio()
-    print(f"Recording saved to {filename}")
+    # print("Starting recording...")
+    #filename = recording.record_and_mix_audio()
+    #print(f"Recording saved to {filename}")
     
     #filename = f"recordings/mixed_2026-05-24_11-09-07.wav"
 
     # Transcribe
-    transcript_filename = transcribe.start_transcription(filename)
-    #transcript_filename = f"transcripts/transcription_diarized.txt"
+    #transcript_filename = transcribe.start_transcription(filename)
+    transcript_filename = f"transcripts/transcript_2026-06-28.txt"
 
     with open(transcript_filename, "r") as f:
         transcript = f.read()
